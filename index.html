@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SecureVault</title>
     <meta name="description" content="Zero-Knowledge Passwort-Manager · AES-256-GCM · GitHub Storage">
+    <!-- Favicon: inline SVG als Data-URL — kein externer File nötig -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%23080c12'/><rect x='20' y='28' width='24' height='20' rx='4' fill='%2300e07a'/><path d='M24 28v-6a8 8 0 0 1 16 0v6' stroke='%2300e07a' stroke-width='3.5' fill='none' stroke-linecap='round'/><circle cx='32' cy='37' r='3' fill='%23080c12'/></svg>">
+    <link rel="alternate icon" href="data:image/png;base64,iVBORw0KGgo=">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;800&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
     <style>
@@ -314,6 +317,19 @@
             font-family: var(--mono); font-size: 0.66rem;
             background: var(--bg3); padding: 0.1rem 0.35rem; border-radius: 4px;
         }
+
+        /* Projekt-Aktionen: erscheinen beim Hover */
+        .project-item .proj-actions { display: none; gap: 0.2rem; margin-left: auto; }
+        .project-item:hover .proj-actions { display: flex; }
+        .project-item:hover .project-count { display: none; }
+        .proj-act-btn {
+            background: none; border: none; cursor: pointer;
+            font-size: 0.75rem; padding: 0.1rem 0.25rem;
+            border-radius: 4px; color: var(--dim); line-height: 1;
+            transition: background var(--trans), color var(--trans);
+        }
+        .proj-act-btn:hover          { background: var(--bg3); color: var(--text); }
+        .proj-act-btn.del:hover      { color: var(--red); }
         .vault-info {
             margin-top: auto; padding: 0.75rem 0.875rem;
             background: rgba(0,224,122,0.03); border: 1px solid rgba(0,224,122,0.08);
@@ -560,6 +576,7 @@
         </div>
         <div class="topbar-right">
             <button class="btn btn-ghost btn-sm" onclick="ghSync.push(true)">↑ Sync</button>
+            <button class="btn btn-ghost btn-sm" onclick="ui.openAddUserModal()">👤 + Nutzer</button>
             <button class="btn btn-ghost btn-sm" onclick="auth.logout()">Abmelden</button>
         </div>
     </nav>
@@ -639,19 +656,54 @@
     </div>
 </div>
 
-<!-- MODAL: Projekt -->
+<!-- MODAL: Projekt anlegen / umbenennen -->
 <div class="modal-overlay" id="modalProject">
     <div class="modal-box" style="max-width:360px;">
         <div class="modal-head">
-            <div class="modal-title">Neues Projekt</div>
+            <div class="modal-title" id="projectModalTitle">Neues Projekt</div>
             <button class="modal-close" onclick="ui.closeProjectModal()">×</button>
         </div>
         <div class="form-group">
             <label>Projektname</label>
             <input type="text" id="projectName" placeholder="z.B. Arbeit, Privat …"
-                   onkeydown="if(event.key==='Enter') vault.createProject()">
+                   onkeydown="if(event.key==='Enter') vault.saveProject()">
         </div>
-        <button class="btn btn-primary" onclick="vault.createProject()">Erstellen</button>
+        <div style="display:flex;gap:0.5rem;">
+            <button class="btn btn-primary" id="projectSaveBtn" onclick="vault.saveProject()" style="flex:1;">Erstellen</button>
+            <button class="btn btn-ghost" onclick="ui.closeProjectModal()" style="flex:0 0 auto;width:auto;padding:0 1.1rem;">Abbrechen</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: Neuen Nutzer anlegen -->
+<div class="modal-overlay" id="modalAddUser">
+    <div class="modal-box" style="max-width:400px;">
+        <div class="modal-head">
+            <div class="modal-title">👤 Neuen Nutzer anlegen</div>
+            <button class="modal-close" onclick="ui.closeAddUserModal()">×</button>
+        </div>
+        <div class="form-group">
+            <label>Benutzername</label>
+            <input type="text" id="newUserName" placeholder="z.B. alisha" autocomplete="off">
+        </div>
+        <div class="form-group">
+            <label>Master-Passwort</label>
+            <input type="password" id="newUserPass" placeholder="Mind. 10 Zeichen"
+                   oninput="ui.liveStrength(this.value,'newUserBar')">
+            <div class="strength-meter"><div class="strength-bar" id="newUserBar"></div></div>
+        </div>
+        <div class="form-group">
+            <label>Passwort bestätigen</label>
+            <input type="password" id="newUserPassConfirm" placeholder="Wiederholen"
+                   onkeydown="if(event.key==='Enter') auth.addUser()">
+        </div>
+        <div style="font-size:0.74rem;color:var(--dim);margin-bottom:1rem;line-height:1.6;">
+            ⚠️ Das Master-Passwort kann <strong>nicht wiederhergestellt</strong> werden.
+        </div>
+        <div style="display:flex;gap:0.5rem;">
+            <button class="btn btn-primary" id="addUserBtn" onclick="auth.addUser()" style="flex:1;">Nutzer erstellen</button>
+            <button class="btn btn-ghost" onclick="ui.closeAddUserModal()" style="flex:0 0 auto;width:auto;padding:0 1.1rem;">Abbrechen</button>
+        </div>
     </div>
 </div>
 
@@ -1000,7 +1052,7 @@ function startLockout(until) {
 /* ═══════════════════════════════════════════════
    AUTH
 ═══════════════════════════════════════════════ */
-const state = { key: null, username: null, currentProject: 'all', editingId: null };
+const state = { key: null, username: null, currentProject: 'all', editingId: null, editingProjectId: null };
 
 const auth = {
     async login() {
@@ -1028,6 +1080,9 @@ const auth = {
             bf.reset();
             state.key      = await Crypto.deriveKey(pw, user.salt);
             state.username = username;
+
+            // URL unkenntlich machen — kein username/repo im Browser sichtbar
+            history.replaceState(null, '', location.pathname);
 
             $('loginScreen').classList.add('hidden');
             $('mainApp').classList.remove('hidden');
@@ -1067,6 +1122,37 @@ const auth = {
             $('loginUser').value = username;
             setTimeout(() => $('loginPass').focus(), 80);
         } finally { btn.disabled = false; btn.textContent = 'Account erstellen →'; }
+    },
+
+    async addUser() {
+        const username = $('newUserName').value.trim();
+        const pw       = $('newUserPass').value;
+        const pw2      = $('newUserPassConfirm').value;
+
+        if (!username || username.length < 3) return toast('Benutzername mind. 3 Zeichen', true);
+        if (!pw || pw.length < 10)            return toast('Master-Passwort mind. 10 Zeichen', true);
+        if (pw !== pw2)                       return toast('Passwörter stimmen nicht überein', true);
+        if (ghSync.db.users.find(u => u.username === username))
+            return toast('Benutzername bereits vergeben', true);
+
+        const btn = $('addUserBtn');
+        btn.disabled = true; btn.innerHTML = '<span class="spin">⟳</span> Erstelle …';
+
+        try {
+            const salt = Crypto.randomSalt();
+            const hash = await Crypto.authHash(pw, salt);
+            ghSync.db.users.push({ username, hash, salt, created: Date.now() });
+            ['Arbeit', 'Privat', 'Social Media'].forEach(name =>
+                ghSync.db.projects.push({ id: Crypto.randomId(), name, userId: username, created: Date.now() })
+            );
+            await ghSync.push();
+            ui.closeAddUserModal();
+            toast(`✓ Nutzer "${username}" erstellt`);
+        } catch(e) {
+            toast('Fehler: ' + e.message, true);
+        } finally {
+            btn.disabled = false; btn.textContent = 'Nutzer erstellen';
+        }
     },
 
     logout() {
@@ -1143,13 +1229,46 @@ const vault = {
         toast('Passwort generiert & kopiert');
     },
 
-    async createProject() {
+    async saveProject() {
         const name = $('projectName').value.trim();
         if (!name) return toast('Bitte Projektnamen eingeben', true);
-        ghSync.db.projects.push({ id: Crypto.randomId(), name, userId: state.username, created: Date.now() });
+        const db = ghSync.db;
+        if (state.editingProjectId) {
+            // Rename
+            const proj = db.projects.find(p => p.id === state.editingProjectId);
+            if (proj) proj.name = name;
+            await ghSync.push();
+            ui.closeProjectModal(); ui.renderProjects();
+            // Update title if we're currently viewing this project
+            if (state.currentProject === state.editingProjectId)
+                $('projectTitle').textContent = name;
+            toast('✓ Projekt umbenannt');
+        } else {
+            // Create
+            db.projects.push({ id: Crypto.randomId(), name, userId: state.username, created: Date.now() });
+            await ghSync.push();
+            ui.closeProjectModal(); ui.renderProjects();
+            toast('✓ Projekt erstellt');
+        }
+    },
+
+    async deleteProject(id) {
+        const proj = ghSync.db.projects.find(p => p.id === id);
+        if (!proj) return;
+        const count = ghSync.db.passwords.filter(p => p.projectId === id).length;
+        const msg = count > 0
+            ? `Projekt "${proj.name}" löschen?\n\n⚠️ ${count} Passwort${count===1?'':'s'} in diesem Projekt wird ebenfalls gelöscht.`
+            : `Projekt "${proj.name}" wirklich löschen?`;
+        if (!confirm(msg)) return;
+        ghSync.db.projects  = ghSync.db.projects.filter(p => p.id !== id);
+        ghSync.db.passwords = ghSync.db.passwords.filter(p => p.projectId !== id);
+        if (state.currentProject === id) {
+            state.currentProject = 'all';
+            $('projectTitle').textContent = 'Alle Passwörter';
+        }
         await ghSync.push();
-        ui.closeProjectModal(); ui.renderProjects();
-        toast('✓ Projekt erstellt');
+        ui.renderProjects(); await ui.renderPasswords();
+        toast('✓ Projekt gelöscht');
     }
 };
 
@@ -1176,9 +1295,24 @@ const ui = {
         pjs.forEach(p => {
             const cnt  = pws.filter(pw => pw.projectId === p.id).length;
             const li   = document.createElement('li'); li.className = 'project-item' + (state.currentProject===p.id?' active':'');
+
             const span = document.createElement('span'); span.textContent = p.name;
-            const c    = document.createElement('span'); c.className = 'project-count'; c.textContent = cnt;
-            li.append(span, c);
+            span.style.cssText = 'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+
+            const c = document.createElement('span'); c.className = 'project-count'; c.textContent = cnt;
+
+            // Action buttons (visible on hover via CSS)
+            const acts = document.createElement('div'); acts.className = 'proj-actions';
+            acts.addEventListener('click', e => e.stopPropagation()); // don't trigger project select
+
+            const renBtn = document.createElement('button'); renBtn.className = 'proj-act-btn'; renBtn.title = 'Umbenennen'; renBtn.textContent = '✏️';
+            renBtn.addEventListener('click', () => ui.openRenameProjectModal(p.id, p.name));
+
+            const delBtn = document.createElement('button'); delBtn.className = 'proj-act-btn del'; delBtn.title = 'Löschen'; delBtn.textContent = '🗑';
+            delBtn.addEventListener('click', () => vault.deleteProject(p.id));
+
+            acts.append(renBtn, delBtn);
+            li.append(span, c, acts);
             li.addEventListener('click', () => ui.selectProject(p.id));
             list.appendChild(li);
         });
@@ -1280,6 +1414,14 @@ const ui = {
         document.querySelectorAll('.password-card').forEach(c => { c.style.display = c.dataset.text.includes(q) ? '' : 'none'; });
     },
 
+    openAddUserModal() {
+        $('newUserName').value = ''; $('newUserPass').value = ''; $('newUserPassConfirm').value = '';
+        $('newUserBar').className = 'strength-bar';
+        $('modalAddUser').classList.add('open');
+        setTimeout(() => $('newUserName').focus(), 80);
+    },
+    closeAddUserModal() { $('modalAddUser').classList.remove('open'); },
+
     openPasswordModal() {
         state.editingId = null;
         $('pwModalTitle').textContent = 'Neues Passwort';
@@ -1289,8 +1431,25 @@ const ui = {
         setTimeout(() => $('pwTitle').focus(), 80);
     },
     closePasswordModal() { $('modalPassword').classList.remove('open'); state.editingId = null; },
-    openProjectModal()   { $('projectName').value = ''; $('modalProject').classList.add('open'); setTimeout(()=>$('projectName').focus(),80); },
-    closeProjectModal()  { $('modalProject').classList.remove('open'); },
+    openProjectModal() {
+        state.editingProjectId = null;
+        $('projectModalTitle').textContent = 'Neues Projekt';
+        $('projectSaveBtn').textContent    = 'Erstellen';
+        $('projectName').value = '';
+        $('modalProject').classList.add('open');
+        setTimeout(() => $('projectName').focus(), 80);
+    },
+
+    openRenameProjectModal(id, currentName) {
+        state.editingProjectId = id;
+        $('projectModalTitle').textContent = 'Projekt umbenennen';
+        $('projectSaveBtn').textContent    = 'Speichern';
+        $('projectName').value = currentName;
+        $('modalProject').classList.add('open');
+        setTimeout(() => { $('projectName').select(); }, 80);
+    },
+
+    closeProjectModal() { $('modalProject').classList.remove('open'); state.editingProjectId = null; },
 
     liveStrength(pw, barId) {
         let s = 0;
