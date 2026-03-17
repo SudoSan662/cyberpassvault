@@ -1052,7 +1052,7 @@ function startLockout(until) {
 /* ═══════════════════════════════════════════════
    AUTH
 ═══════════════════════════════════════════════ */
-const state = { key: null, username: null, currentProject: 'all', editingId: null, editingProjectId: null };
+const state = { key: null, rawVaultKey: null, username: null, currentProject: 'all', editingId: null, editingProjectId: null };
 
 const auth = {
     async login() {
@@ -1078,7 +1078,25 @@ const auth = {
                 return;
             }
             bf.reset();
-            state.key      = await Crypto.deriveKey(pw, user.salt);
+
+            // Master-Key des Users ableiten (nur zum Entschlüsseln des Vault-Keys)
+            const userKey = await Crypto.deriveKey(pw, user.salt);
+
+            // Vault-Key entschlüsseln (gemeinsamer Team-Schlüssel)
+            // Fallback für alte Accounts ohne vaultKeyEnc: userKey direkt verwenden
+            if (user.vaultKeyEnc) {
+                const decrypted     = await Crypto.decrypt(user.vaultKeyEnc, userKey);
+                state.rawVaultKey   = decrypted.v;
+                state.key           = await crypto.subtle.importKey(
+                    'raw', _b64ToU8(state.rawVaultKey),
+                    { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']
+                );
+            } else {
+                // Legacy-Account (vor Team-Vault) — direkt mit userKey arbeiten
+                state.key         = userKey;
+                state.rawVaultKey = null;
+            }
+
             state.username = username;
 
             // URL unkenntlich machen — kein username/repo im Browser sichtbar
@@ -1109,9 +1127,16 @@ const auth = {
         btn.disabled = true; btn.innerHTML = '<span class="spin">⟳</span> Erstelle Account …';
 
         try {
-            const salt = Crypto.randomSalt();
-            const hash = await Crypto.authHash(pw, salt);
-            ghSync.db.users.push({ username, hash, salt, created: Date.now() });
+            const salt      = Crypto.randomSalt();
+            const hash      = await Crypto.authHash(pw, salt);
+            const masterKey = await Crypto.deriveKey(pw, salt);
+
+            // Ersten Vault-Key generieren (32 Byte kryptografisch zufällig)
+            const rawVaultKey  = crypto.getRandomValues(new Uint8Array(32));
+            const vaultKeyB64  = _u8ToB64(rawVaultKey);
+            const vaultKeyEnc  = await Crypto.encrypt({ v: vaultKeyB64 }, masterKey);
+
+            ghSync.db.users.push({ username, hash, salt, vaultKeyEnc, created: Date.now() });
             ['Arbeit','Privat','Social Media'].forEach(name =>
                 ghSync.db.projects.push({ id: Crypto.randomId(), name, userId: username, created: Date.now() })
             );
@@ -1139,15 +1164,24 @@ const auth = {
         btn.disabled = true; btn.innerHTML = '<span class="spin">⟳</span> Erstelle …';
 
         try {
-            const salt = Crypto.randomSalt();
-            const hash = await Crypto.authHash(pw, salt);
-            ghSync.db.users.push({ username, hash, salt, created: Date.now() });
+            const salt           = Crypto.randomSalt();
+            const hash           = await Crypto.authHash(pw, salt);
+            const newUserKey     = await Crypto.deriveKey(pw, salt);
+
+            // Vault-Key des eingeloggten Users für den neuen User einpacken
+            // state.rawVaultKey ist der gemeinsame Team-Schlüssel als B64-String
+            if (!state.rawVaultKey)
+                return toast('Fehler: Kein Vault-Key aktiv. Bitte neu einloggen.', true);
+
+            const vaultKeyEnc = await Crypto.encrypt({ v: state.rawVaultKey }, newUserKey);
+
+            ghSync.db.users.push({ username, hash, salt, vaultKeyEnc, created: Date.now() });
             ['Arbeit', 'Privat', 'Social Media'].forEach(name =>
                 ghSync.db.projects.push({ id: Crypto.randomId(), name, userId: username, created: Date.now() })
             );
             await ghSync.push();
             ui.closeAddUserModal();
-            toast(`✓ Nutzer "${username}" erstellt`);
+            toast(`✓ Nutzer "${username}" erstellt — gleicher Vault-Zugriff wie du`);
         } catch(e) {
             toast('Fehler: ' + e.message, true);
         } finally {
@@ -1156,7 +1190,8 @@ const auth = {
     },
 
     logout() {
-        state.key = null; state.username = null;
+        state.key = null; state.rawVaultKey = null;
+        state.username = null;
         state.currentProject = 'all'; state.editingId = null;
         $('mainApp').classList.add('hidden');
         $('loginScreen').classList.remove('hidden');
@@ -1278,8 +1313,9 @@ const vault = {
 const ui = {
     renderProjects() {
         const db  = ghSync.db;
-        const pjs = db.projects.filter(p => p.userId === state.username);
-        const pws = db.passwords.filter(p => p.userId === state.username);
+        // Team-Vault: alle Projekte und Passwörter anzeigen, nicht nur eigene
+        const pjs = db.projects;
+        const pws = db.passwords;
         const list = $('projectList');
 
         // "All" item
@@ -1317,10 +1353,10 @@ const ui = {
             list.appendChild(li);
         });
 
-        // Update project selector in modal
+        // Update project selector in modal — alle Team-Projekte anzeigen
         const sel = $('pwProject');
         sel.innerHTML = '';
-        pjs.forEach(p => {
+        db.projects.forEach(p => {
             const opt = document.createElement('option'); opt.value = p.id; opt.textContent = p.name; sel.appendChild(opt);
         });
     },
@@ -1334,7 +1370,8 @@ const ui = {
 
     async renderPasswords() {
         const db = ghSync.db;
-        let entries = db.passwords.filter(p => p.userId === state.username);
+        // Team-Vault: alle Passwörter anzeigen (gemeinsamer Vault-Key)
+        let entries = db.passwords;
         if (state.currentProject !== 'all') entries = entries.filter(p => p.projectId === state.currentProject);
 
         const grid = $('passwordGrid');
