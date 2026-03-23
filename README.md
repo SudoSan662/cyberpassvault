@@ -1,155 +1,190 @@
-# 🔐 SecureVault Light
+# 🔐 SecureVault — Dev Branch
 
-Zero-Knowledge Passwort-Manager · AES-256-GCM · GitHub als verschlüsselter Cloud-Speicher.
+**Aktiver Entwicklungszweig. Hier entstehen neue Features, 
+werden Architekturen getestet und Team-Funktionalität gebaut.**
 
-[![Live Demo](https://img.shields.io/badge/Live-GitHub%20Pages-00e07a?style=flat-square&logo=github)](https://DEIN-USERNAME.github.io/securevault/)
-[![Security](https://img.shields.io/badge/Crypto-AES--256--GCM-00e07a?style=flat-square)]()
-[![Zero Knowledge](https://img.shields.io/badge/Architecture-Zero--Knowledge-00e07a?style=flat-square)]()
-
----
-
-## Features
-
-- 🔒 **AES-256-GCM** Verschlüsselung — jeder Eintrag einzeln
-- 🔑 **PBKDF2** Key Derivation — 200.000 Iterationen, SHA-256
-- ☁️ **GitHub API** als verschlüsselter Remote-Speicher
-- 👁️ **Zero-Knowledge** — GitHub sieht nur verschlüsselte Blobs
-- 🔄 **Conflict Handling** — SHA pre-check + 409 Resolver
-- 🛡️ **Brute-Force Schutz** — 5 Versuche, dann 5min Lockout
-- 📁 Projekte / Kategorien
-- 🎲 Passwort-Generator (kryptografisch sicher)
-- 🔍 Echtzeit-Suche
+> ⚠️ Dieser Branch ist instabil. Für die stabile Portfolio-Version:
+> → [github.com/SudoSan662/Portfolio_SecureVault](https://github.com/SudoSan662/Portfolio_SecureVault)
 
 ---
 
-## Deployment auf GitHub Pages (5 Minuten)
+## Was ist dieser Branch?
 
-### Schritt 1 — Repository erstellen
+SecureVault ist ein Zero-Knowledge Passwort-Manager — 
+browserbasiert, ohne Backend, ohne Dependencies.
 
-```bash
-# Option A: GitHub CLI
-gh repo create securevault --public --clone
-cd securevault
+Dieser Entwicklungszweig geht über die Basis-Version hinaus. 
+Hier werden getestet:
 
-# Option B: Manuell
-# github.com → New repository → Name: "securevault" → Create
-# Dann lokal klonen:
-git clone https://github.com/DEIN-USERNAME/securevault.git
-cd securevault
-```
-
-### Schritt 2 — Dateien hinzufügen
-
-```bash
-# index.html in den Ordner kopieren, dann:
-git add index.html
-git commit -m "🔐 SecureVault Light — initial deploy"
-git push origin main
-```
-
-### Schritt 3 — GitHub Pages aktivieren
-
-```
-GitHub Repo → Settings → Pages
-→ Source: Deploy from a branch
-→ Branch: main / (root)
-→ Save
-```
-
-Nach ~60 Sekunden live unter:
-**`https://DEIN-USERNAME.github.io/securevault/`**
+- Team-Funktionalität (Invite-System, geteilte Einträge)
+- Admin-Panel mit Benutzerverwaltung
+- Audit-Log und Zugriffsprotokollierung
+- Architektonische Entscheidungen vor dem Merge in main
 
 ---
 
-## Erste Benutzung
+## Aktueller Entwicklungsstand
 
-### GitHub Token erstellen (Fine-grained — empfohlen)
-
-```
-github.com/settings/personal-access-tokens/new
-
-Token name:     SecureVault
-Expiration:     nach Wunsch (365 Tage empfohlen)
-Repository access: Only select repositories → securevault
-Permissions:
-  → Contents: Read and Write
-  → Metadata: Read (automatisch)
-```
-
-### App einrichten
-
-```
-1. URL öffnen: https://DEIN-USERNAME.github.io/securevault/
-2. Token eingeben → Weiter
-3. Repository eingeben: DEIN-USERNAME/securevault → Verbinden
-4. Account erstellen (erster Start)
-5. Fertig — Vault ist bereit
-```
+| Modul | Status |
+|---|---|
+| AES-256-GCM Verschlüsselung | ✅ Stabil |
+| PBKDF2 Key Derivation | ✅ Stabil |
+| GitHub API Storage | ✅ Stabil |
+| Conflict Handling / 409 Resolver | ✅ Stabil |
+| Brute-Force Schutz | ✅ Stabil |
+| Passwort-Generator | ✅ Stabil |
+| Team Invite-System | 🔧 In Entwicklung |
+| Admin-Panel | 🔧 In Entwicklung |
+| Audit-Log | 🔧 In Entwicklung |
+| Granulare Eintrags-Berechtigungen | 📋 Geplant |
 
 ---
 
 ## Sicherheitsarchitektur
-
 ```
 Master-Passwort (nur im RAM)
         │
         ▼
-PBKDF2 (200k Iterationen, SHA-256, Salt)
+PBKDF2 — 200.000 Iterationen · SHA-256 · Salt
         │
-        ├── Auth-Hash    → in vault.db.enc (Login-Verifikation)
-        └── AES-256 Key  → nur im RAM, nie gespeichert
+        ├── Auth-Hash     →  Login-Verifikation
+        └── AES-256 Key   →  nur im RAM, wird nie gespeichert
                 │
                 ▼
-        Verschlüsselte Einträge (AES-256-GCM)
+        AES-256-GCM Verschlüsselung · pro Eintrag · 12-Byte IV
                 │
                 ▼
-        GitHub API → vault.db.enc (nur verschlüsselter Blob)
+        GitHub API  →  vault.db.enc (verschlüsselter Blob)
 ```
 
-**Was GitHub sieht:** Einen verschlüsselten Base64-Blob.
-**Was GitHub NICHT sieht:** Passwörter, Benutzernamen, Master-Passwort, Encryption Key.
+**Zero-Knowledge Prinzip:**  
+GitHub sieht ausschließlich einen verschlüsselten Base64-String. 
+Master-Passwort, Encryption Key und Klartextdaten verlassen 
+den Browser nie.
+
+---
+
+## Lokales Setup
+
+### Voraussetzungen
+- GitHub Account
+- Personal Access Token (Fine-grained)
+- Einen modernen Browser (Web Crypto API erforderlich)
+
+### Token erstellen
+```
+github.com → Settings → Developer Settings
+→ Personal access tokens → Fine-grained tokens → Generate new token
+
+Token name:        SecureVault-Dev
+Expiration:        nach Wunsch
+Repository access: Only select repositories → dieses Repo
+
+Permissions:
+  → Contents:  Read and Write
+  → Metadata:  Read (automatisch)
+```
+
+### Repository klonen & deployen
+```bash
+# Repository klonen
+git clone https://github.com/SudoSan662/Portfolio_SecureVault.git
+cd Portfolio_SecureVault
+
+# Änderungen pushen
+git add .
+git commit -m "beschreibung der änderung"
+git push origin main
+```
+
+### GitHub Pages aktivieren
+```
+Repo → Settings → Pages
+→ Source: Deploy from a branch
+→ Branch: main / (root)
+→ Save
+
+Live unter: https://DEIN-USERNAME.github.io/securevault/
+```
 
 ---
 
 ## Conflict Handling
 
-Die App verhindert Datenverlust bei gleichzeitiger Nutzung:
-
+Verhindert Datenverlust bei gleichzeitiger Nutzung:
 ```
 Vor jedem Speichern:
   → SHA des aktuellen GitHub-Files prüfen
-  → Abweichung erkannt → Konflikt-Dialog
+  → Abweichung erkannt → Konflikt-Dialog öffnet sich
 
-Konflikt-Dialog:
-  → GitHub-Version laden (empfohlen)
-  → Eigene Version erzwingen (force-push)
-  → Abbrechen
+Konflikt-Dialog Optionen:
+  → GitHub-Version laden    (empfohlen — neueste Version)
+  → Eigene Version pushen   (force — überschreibt Remote)
+  → Abbrechen               (keine Änderung)
 ```
 
 ---
 
-## Technologie
+## Technologie-Stack
 
 | Komponente | Technologie |
-|------------|-------------|
+|---|---|
 | Verschlüsselung | Web Crypto API (nativ im Browser) |
-| Key Derivation | PBKDF2 · 200k iter · SHA-256 |
+| Key Derivation | PBKDF2 · 200k Iterationen · SHA-256 |
 | Symmetric Enc | AES-256-GCM · 12-Byte IV |
 | Storage | GitHub Contents API |
 | Hosting | GitHub Pages |
-| Dependencies | **Keine** — pure Vanilla JS |
+| Dependencies | Keine — pure Vanilla JS |
 
 ---
 
-## Warum GitHub als Storage?
+## Bekannte Limitierungen (bewusste Tradeoffs)
 
-- **Zero Infrastrukturkosten** — 0€/Monat, 99.9% Uptime
-- **Native Versionierung** — Git History als automatisches Backup
-- **Zero-Knowledge by design** — GitHub kann nicht entschlüsseln
-- **Fine-grained Access Control** — Token nur für dieses eine Repo
-
-*Tradeoffs: Metadaten-Exposition (Sync-Zeitpunkte sichtbar), kein Granular-Access auf Eintrags-Ebene, API Rate Limits bei vielen gleichzeitigen Nutzern.*
+- **Metadaten-Exposition** — Sync-Zeitpunkte in der Git-History 
+  sichtbar
+- **Rate Limits** — GitHub API limitiert bei vielen gleichzeitigen 
+  Nutzern
+- **Kein Granular-Access** — Token gilt für das gesamte Repository, 
+  nicht einzelne Einträge
+- **Kein Offline-Modus** — GitHub API erfordert Internetverbindung 
+  beim Sync
 
 ---
 
-*SecureVault Light ist die Basis-Version. Eine Team-Version mit Invite-System, Admin-Panel, geteilten Einträgen und Audit-Log ist in Entwicklung.*
+## Roadmap
+
+### v1.1 — Team Features (in Entwicklung)
+- [ ] Invite-System per verschlüsseltem Link
+- [ ] Geteilte Einträge mit Berechtigungsstufen
+- [ ] Admin-Panel für Benutzerverwaltung
+
+### v1.2 — Audit & Compliance
+- [ ] Audit-Log aller Zugriffe und Änderungen
+- [ ] Export-Funktion (verschlüsselt)
+- [ ] Session-Timeout konfigurierbar
+
+### v1.3 — UX & Performance
+- [ ] Offline-Cache mit Service Worker
+- [ ] Import aus anderen Passwort-Managern
+- [ ] Dark / Light Mode
+
+---
+
+## Branch-Strategie
+```
+main          →  Stabile Portfolio-Version (kein direkter Push)
+dev           →  Dieser Branch — aktive Entwicklung
+feature/*     →  Einzelne Features (merge into dev)
+```
+
+> Direkte Pushes auf `main` vermeiden.  
+> Features über `dev` entwickeln und testen, dann PR auf `main`.
+
+---
+
+## Lizenz & Kontext
+
+Dieses Projekt ist Teil eines persönlichen Portfolios 
+im Bereich IT-Security & Webentwicklung.
+
+📬 [github.com/SudoSan662](https://github.com/SudoSan662)
